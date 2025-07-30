@@ -29,7 +29,8 @@ export const fetchUniqueGivenByDataApi = async () =>{
        const { data, error } = await supabase
   .from('users')
   .select('given_by')
-   .not('given_by', 'is', null)
+  .not('given_by', 'is', null)      // filters out nulls
+  .neq('given_by', '') 
   .order('given_by', { ascending: true });
   
 
@@ -54,6 +55,7 @@ export const fetchUniqueDoerNameDataApi = async () =>{
   .from('users')
   .select('user_name')
    .not('user_name', 'is', null)
+   .neq('user_name', '')
   .order('user_name', { ascending: true });
   
 

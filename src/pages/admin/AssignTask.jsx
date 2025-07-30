@@ -1183,7 +1183,7 @@ useEffect(()=>{
                 Task Details
               </h2>
               <p className="text-purple-600">
-                Fill in the details to assign a new task to a staff member  deplaoy.
+                Fill in the details to assign a new task to a staff member .
               </p>
             </div>
             <div className="p-6 space-y-4">

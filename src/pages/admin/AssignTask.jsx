@@ -557,6 +557,8 @@ useEffect(()=>{
       //   givenBy: [...new Set(givenBy)],
       //   doers: [...new Set(doers)],
       // });
+
+      
     } catch (error) {
       console.error("Error fetching master sheet options:", error);
       // Set default options if fetch fails
@@ -665,6 +667,9 @@ useEffect(()=>{
     const year = d.getFullYear();
     return `${day}/${month}/${year}`;
   };
+
+
+const uniqueDepartments = [...new Set(department.map(d => d.department))];
 
   // Function to fetch working days from the Working Day Calendar sheet
   // const fetchWorkingDays = async () => {
@@ -1204,9 +1209,9 @@ useEffect(()=>{
   className="w-full rounded-md border border-purple-200 p-2 focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
 >
   <option value="">Select Department</option>
-  {department.map((deptName, index) => (
-    <option key={index} value={deptName}>
-      {deptName}
+ {uniqueDepartments.map((dept, index) => (
+    <option key={index} value={dept}>
+      {dept}
     </option>
   ))}
 </select>

@@ -4,20 +4,21 @@ export const fetchUniqueDepartmentDataApi = async () =>{
     try {
        const { data, error } = await supabase
   .from('users')
-  .select('department','given_by','user_name')
+  .select('department')
    .not('department', 'is', null)
+   .neq('department', '')
   .order('department', { ascending: true });
   
 
-const uniqueDepartments = [...new Set(data.map(d => d.department))];
+//const uniqueDepartments = [...new Set(data.map(d => d.department))];
 
         if (!error) {
-            console.log("fetch succefully",uniqueDepartments)
+            console.log("fetch succefully",data)
             
         } else {
            console.log("error when fetching data",error) 
         } 
-        return uniqueDepartments;
+        return data;
     } catch (error) {
        console.log("error from supabase",error);
         

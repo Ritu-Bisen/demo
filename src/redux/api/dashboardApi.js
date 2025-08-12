@@ -29,7 +29,7 @@ export const countTotalTaskApi = async (dashboardType) => {
    const role=localStorage.getItem('role');
    const username=localStorage.getItem('user-name');
   try {
-    let query = supabase
+    let query =await supabase
       .from(dashboardType)
       .select('*', { count: 'exact', head: true })
       .lte('task_start_date', `${today}T23:59:59`);
@@ -61,7 +61,7 @@ export const countCompleteTaskApi = async (dashboardType) => {
     let query;
 
     if (dashboardType === 'delegation') {
-      query = supabase
+      query =await supabase
         .from('delegation')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'done')
@@ -106,7 +106,7 @@ export const countPendingOrDelayTaskApi = async (dashboardType) => {
     let query;
 
     if (dashboardType === 'delegation') {
-      query = supabase
+      query =await supabase
         .from('delegation')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'done')
@@ -152,7 +152,7 @@ export const countOverDueORExtendedTaskApi = async (dashboardType) => {
 
     if (dashboardType === 'delegation') {
       // From 'delegation' table where status = 'done' AND color_code_for > 2
-      query = supabase
+      query =await supabase
         .from('delegation')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'done')

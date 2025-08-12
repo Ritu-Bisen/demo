@@ -308,7 +308,7 @@ const parseDateFromDDMMYYYY = (dateStr) => {
     if (!isNaN(parsed)) return parsed
   }
 
-  console.warn('Unsupported date format in parseDateFromDDMMYYYY:', dateStr)
+//  console.warn('Unsupported date format in parseDateFromDDMMYYYY:', dateStr)
   return null
 }
 

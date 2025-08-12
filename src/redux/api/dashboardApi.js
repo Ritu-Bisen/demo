@@ -25,12 +25,14 @@ export const fetchDashboardDataApi = async (dashboardType) => {
 
 
 export const countTotalTaskApi = async (dashboardType) => {
+      const today = new Date().toISOString().split('T')[0]; 
    const role=localStorage.getItem('role');
    const username=localStorage.getItem('user-name');
   try {
     let query = supabase
       .from(dashboardType)
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .lte('task_start_date', `${today}T23:59:59`);
 
     if (role === 'user' && username) {
       query = query.eq('name', username);

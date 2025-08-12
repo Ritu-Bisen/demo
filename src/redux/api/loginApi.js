@@ -4,11 +4,11 @@ import supabase from "../../SupabaseClient";
 
 export const LoginCredentialsApi = async (formData) => {
   const { data, error } = await supabase
-    .from('users')
+    .from('master')
     .select('*')
-    .eq('user_name', formData.username)
+    .eq("user_name", formData.username)
     .eq('password', formData.password)
-     .eq('status', 'active')
+   // .eq('status', 'active')
     .single(); // get a single user
 
   if (error || !data) {

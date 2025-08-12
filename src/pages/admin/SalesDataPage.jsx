@@ -1079,31 +1079,7 @@ const handleSubmit = async () => {
                             </div>
                           </td>
                      <td className="px-3 py-4 bg-yellow-50 min-w-[140px]">
-  <div className="text-sm text-gray-900 break-words">
-    {history.task_start_date ? (() => {
-      const date = parseSupabaseDate(history.task_start_date);
-      if (!date || isNaN(date.getTime())) return "Invalid date";
-      
-      // Format as DD/MM/YYYY HH:MM:SS
-      const day = date.getDate().toString().padStart(2, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const year = date.getFullYear();
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      const seconds = date.getSeconds().toString().padStart(2, '0');
-
-      return (
-        <div>
-          <div className="font-medium break-words">
-            {`${day}/${month}/${year}`}
-          </div>
-          <div className="text-xs text-gray-500 break-words">
-            {`${hours}:${minutes}:${seconds}`}
-          </div>
-        </div>
-      );
-    })() : "—"}
-  </div>
+ 
 </td>
                           <td className="px-3 py-4 min-w-[80px]">
                             <div className="text-sm text-gray-900 break-words">{history.frequency || "—"}</div>

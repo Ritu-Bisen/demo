@@ -1,31 +1,45 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { fetchChechListDataForHistory, fetchChechListDataSortByDate, postChecklistAdminDoneAPI, updateChecklistData } from "../api/checkListApi";
 
-
-
-
-export const checklistData=createAsyncThunk( 'fetch/checklist',async () => {
-    const checklist = await fetchChechListDataSortByDate();
-   
-    return checklist;
+export const fetchChecklistData = createAsyncThunk(
+  'fetch/checklist',
+  async ({ page = 1, searchTerm = '' }, { getState }) => {
+    const { checklist } = getState();
+    const currentPage = page || checklist.currentPage;
+    const response = await fetchChechListDataSortByDate(currentPage, 10, searchTerm);
+    return {
+      data: response.data,
+      page: currentPage,
+      hasMore: response.hasMore
+    };
   }
 );
 
-export const checklistHistoryData=createAsyncThunk( 'fetch/history',async () => {
-    const histroydata = await fetchChechListDataForHistory();
-   
-    return histroydata;
+export const searchChecklist = createAsyncThunk(
+  'search/checklist',
+  async (searchTerm, { dispatch }) => {
+    // Reset and fetch first page with search term
+    dispatch(resetChecklist());
+    return dispatch(fetchChecklistData({ page: 1, searchTerm })).unwrap();
   }
 );
 
-export const checklistAdminDone=createAsyncThunk( 'insert/admin_done',async () => {
-  const admin_done = await postChecklistAdminDoneAPI();
- 
-  return admin_done;
-}
+export const checklistHistoryData = createAsyncThunk(
+  'fetch/history',
+  async () => {
+    const historyData = await fetchChechListDataForHistory();
+    return historyData;
+  }
 );
 
-// checkListSlice.js
+export const checklistAdminDone = createAsyncThunk(
+  'insert/admin_done',
+  async (selectedItems) => {
+    const adminDone = await postChecklistAdminDoneAPI(selectedItems);
+    return adminDone;
+  }
+);
+
 export const updateChecklist = createAsyncThunk(
   'update/checklist',
   async (submissionData) => {
@@ -34,57 +48,89 @@ export const updateChecklist = createAsyncThunk(
   }
 );
 
-
-
 const checkListSlice = createSlice({
   name: 'checklist',
- 
   initialState: {
     checklist: [],
-    history:[],
+    history: [],
     error: null,
     loading: false,
-   
+    currentPage: 1,
+    hasMore: true,
+    isFetching: false,
+    searchTerm: '',
+    isSearching: false
   },
-  reducers: {},
+  reducers: {
+    resetChecklist: (state) => {
+      state.checklist = [];
+      state.currentPage = 1;
+      state.hasMore = true;
+      state.searchTerm = '';
+      state.isSearching = false;
+    },
+    setSearchTerm: (state, action) => {
+      state.searchTerm = action.payload;
+    }
+  },
   extraReducers: (builder) => {
     builder
-   
-      .addCase(checklistData.pending, (state) => {
+      .addCase(fetchChecklistData.pending, (state) => {
         state.loading = true;
+        state.isFetching = true;
         state.error = null;
       })
-      .addCase(checklistData.fulfilled, (state, action) => {
+      .addCase(fetchChecklistData.fulfilled, (state, action) => {
         state.loading = false;
-        state.checklist=action.payload;
+        state.isFetching = false;
+        state.checklist = state.currentPage === 1 
+          ? action.payload.data 
+          : [...state.checklist, ...action.payload.data];
+        state.currentPage = action.payload.page + 1;
+        state.hasMore = action.payload.hasMore;
       })
-      .addCase(checklistData.rejected, (state, action) => {
+      .addCase(fetchChecklistData.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.isFetching = false;
+        state.error = action.error.message;
       })
-         .addCase(updateChecklist.pending, (state) => {
+      .addCase(searchChecklist.pending, (state) => {
+        state.isSearching = true;
+        state.error = null;
+      })
+      .addCase(searchChecklist.fulfilled, (state) => {
+        state.isSearching = false;
+      })
+      .addCase(searchChecklist.rejected, (state, action) => {
+        state.isSearching = false;
+        state.error = action.error.message;
+      })
+      .addCase(updateChecklist.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(updateChecklist.fulfilled, (state, action) => {
         state.loading = false;
-        state.checklist=action.payload;
+        // Update the specific items in checklist
+        state.checklist = state.checklist.map(item => 
+          action.payload.find(updated => updated.task_id === item.task_id) || item
+        );
       })
       .addCase(updateChecklist.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.error.message;
       })
-         .addCase(checklistHistoryData.pending, (state) => {
+      .addCase(checklistHistoryData.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(checklistHistoryData.fulfilled, (state, action) => {
         state.loading = false;
-        state.history=action.payload;
+        state.history = action.payload;
       })
       .addCase(checklistHistoryData.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.error.message;
       })
       .addCase(checklistAdminDone.pending, (state) => {
         state.loading = true;
@@ -92,14 +138,19 @@ const checkListSlice = createSlice({
       })
       .addCase(checklistAdminDone.fulfilled, (state, action) => {
         state.loading = false;
-        state.history.push(action.payload);
+        // Update history items with admin_done status
+        state.history = state.history.map(item => 
+          action.payload.some(updated => updated.task_id === item.task_id) 
+            ? { ...item, admin_done: new Date().toISOString() }
+            : item
+        );
       })
       .addCase(checklistAdminDone.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.error.message;
       });
-     
   },
 });
 
 export default checkListSlice.reducer;
+export const { resetChecklist, setSearchTerm } = checkListSlice.actions;

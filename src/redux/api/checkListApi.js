@@ -1,85 +1,76 @@
 import supabase from "../../SupabaseClient";
 
-export const fetchChechListDataSortByDate = async () => {
-const role=localStorage.getItem('role');
-const username=localStorage.getItem('user-name')
-
+// checkListApi.js
+export const fetchChechListDataSortByDate = async (page = 1, limit = 10, searchTerm = '') => {
+  const role = localStorage.getItem('role');
+  const username = localStorage.getItem('username');
+  
   try {
     const today = new Date();
-    const startOfToday = new Date(today.setHours(0, 0, 0, 0)).toISOString();
-    
     const endOfTomorrow = new Date();
-    endOfTomorrow.setDate(endOfTomorrow.getDate() + 1);
+    endOfTomorrow.setDate(today.getDate() + 1);
     endOfTomorrow.setHours(23, 59, 59, 999);
     const endOfTomorrowISO = endOfTomorrow.toISOString();
 
+    // Base query with only necessary filters
     let query = supabase
       .from('checklist')
-      .select('*')
+      .select('task_id, department, given_by, name, task_description, task_start_date, frequency, enable_reminder, require_attachment, submission_date, status, remark, image, admin_done')
+      .range((page - 1) * limit, (page * limit) - 1)
       .lte('task_start_date', endOfTomorrowISO)
       .order('task_start_date', { ascending: true })
       .or('submission_date.is.null,status.is.null');
 
-    // Apply role filter
+    // Add search filter if provided
+    if (searchTerm) {
+      query = query.ilike('task_description', `%${searchTerm}%`);
+    }
+
+    // Add user filter if needed
     if (role === 'user' && username) {
       query = query.eq('name', username);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
 
-    if (error) {
-      console.log("Error when fetching data", error);
-      return [];
-    }
+    if (error) throw error;
 
-    console.log("Fetched successfully", data);
-    return data;
-
+    return {
+      data: data || [],
+      hasMore: data?.length === limit
+    };
   } catch (error) {
-    console.log("Error from Supabase", error);
-    return [];
+    console.error("Error fetching checklist data:", error);
+    throw error;
   }
 };
 
-
 export const fetchChechListDataForHistory = async () => {
-const role=localStorage.getItem('role');
-const username=localStorage.getItem('user-name')
-
-  const today = new Date();
-  const startOfToday = new Date(today.setHours(0, 0, 0, 0)).toISOString(); // Today 00:00:00
-
-  const endOfTomorrow = new Date();
-  endOfTomorrow.setDate(endOfTomorrow.getDate() + 1);
-  endOfTomorrow.setHours(23, 59, 59, 999); // Tomorrow 23:59:59
-  const endOfTomorrowISO = endOfTomorrow.toISOString();
-
+  const role = localStorage.getItem('role');
+  const username = localStorage.getItem('username');
+  
   try {
+    // Only select completed tasks (where submission_date is not null)
     let query = supabase
       .from('checklist')
-      .select('*')
-      .order('task_start_date', { ascending: true })
-      .lte('task_start_date', endOfTomorrowISO)
+      .select('task_id, department, given_by, name, task_description, task_start_date, frequency, enable_reminder, require_attachment, submission_date, status, remark, image, admin_done')
       .not('submission_date', 'is', null)
-      .not('status', 'is', null);
+      .not('status', 'is', null)
+      .order('task_start_date', { ascending: false });
 
+    // Add user filter if needed
     if (role === 'user' && username) {
       query = query.eq('name', username);
     }
 
     const { data, error } = await query;
 
-    if (error) {
-      console.log("Error when fetching data", error);
-      return [];
-    }
+    if (error) throw error;
 
-    console.log("Fetched successfully", data);
-    return data;
-
+    return data || [];
   } catch (error) {
-    console.log("Error from Supabase", error);
-    return [];
+    console.error("Error fetching history data:", error);
+    throw error;
   }
 };
 

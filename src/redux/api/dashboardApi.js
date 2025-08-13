@@ -32,7 +32,7 @@ export const countTotalTaskApi = async (dashboardType) => {
     let query =await supabase
       .from(dashboardType)
       .select('*', { count: 'exact', head: true })
-      .lte('task_start_date', `${today}T23:59:59`);
+       .lte('task_start_date', `${today}T23:59:59`);
 
     if (role === 'user' && username) {
       query = query.eq('name', username);

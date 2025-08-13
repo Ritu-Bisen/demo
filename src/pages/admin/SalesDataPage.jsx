@@ -1,12 +1,15 @@
 "use client"
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo,useRef  } from "react"
 import { CheckCircle2, Upload, X, Search, History, ArrowLeft } from "lucide-react"
 import AdminLayout from "../../components/layout/AdminLayout"
 import { useDispatch, useSelector } from "react-redux"
-import { checklistData, checklistHistoryData, updateChecklist } from "../../redux/slice/checklistSlice"
+import {  checklistHistoryData, updateChecklist } from "../../redux/slice/checklistSlice"
 import { postChecklistAdminDoneAPI } from "../../redux/api/checkListApi"
 import { uniqueDoerNameData} from "../../redux/slice/assignTaskSlice";
 import { useNavigate } from "react-router-dom"
+import { useDebounce } from 'use-debounce'; 
+
+import { fetchChecklistData, resetChecklist } from '../../redux/slice/checklistSlice';
 
 // Configuration object - Move all configurations here
 const CONFIG = {
@@ -33,8 +36,8 @@ function AccountDataPage() {
   const [successMessage, setSuccessMessage] = useState("")
   const [additionalData, setAdditionalData] = useState({})
   const [searchTerm, setSearchTerm] = useState("")
- // const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+ const [initialLoading, setInitialLoading] = useState(true);
+//  const [error, setError] = useState(null)
   const [remarksData, setRemarksData] = useState({})
   const [historyData, setHistoryData] = useState([])
   const [showHistory, setShowHistory] = useState(false)
@@ -44,19 +47,68 @@ function AccountDataPage() {
   const [endDate, setEndDate] = useState("")
   const [userRole, setUserRole] = useState("")
   const [username, setUsername] = useState("")
+  const [debouncedSearchTerm] = useDebounce(searchTerm, 500);
 
-  const {checklist,loading,history}=useSelector((state)=>state.checkList)
+//  const {checklist,loading,history}=useSelector((state)=>state.checkList)
   const {doerName}=useSelector((state)=>state.assignTask)
 
 console.log(doerName)
+  const { checklist, loading, error, hasMore, isFetching,history } = useSelector((state) => state.checkList);
+//  const dispatch = useDispatch();
+  const observer = useRef();
+  const tableContainerRef = useRef();
+const dispatch =useDispatch();
+  // Initial load
+  // useEffect(() => {
+  //   dispatch(resetChecklist());
+  //   dispatch(fetchChecklistData(1)); // Start with page 1
+  // }, [dispatch]);
 
-  const dispatch =useDispatch();
+  // Infinite scroll observer
+ const lastItemRef = useCallback(
+    (node) => {
+      if (loading || isFetching) return;
+      if (observer.current) observer.current.disconnect();
+      
+      observer.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting && hasMore && !loading) {
+            dispatch(fetchChecklistData({ 
+              searchTerm: debouncedSearchTerm 
+            }));
+          }
+        },
+        {
+          root: tableContainerRef.current,
+          threshold: 0.1,
+        }
+      );
+      
+      if (node) observer.current.observe(node);
+    },
+    [loading, hasMore, isFetching, dispatch, debouncedSearchTerm]
+  );
+
+  
   useEffect(()=>{
-dispatch(checklistData())
+//dispatch(checklistData())
 dispatch(checklistHistoryData()) 
  dispatch(uniqueDoerNameData());
-
-  },[dispatch])
+  dispatch(resetChecklist());
+  //   dispatch(fetchChecklistData(1));
+ const fetchData = async () => {
+      try {
+        await dispatch(fetchChecklistData({ 
+          page: 1, 
+          searchTerm: debouncedSearchTerm 
+        }));
+        setInitialLoading(false);
+      } catch (err) {
+        setInitialLoading(false);
+      }
+    };
+    fetchData();
+  }, [debouncedSearchTerm, dispatch]);
 
 
 
@@ -279,22 +331,9 @@ dispatch(checklistHistoryData())
   };
 
   // Memoized filtered data to prevent unnecessary re-renders
-const filteredAccountData = useMemo(() => {
-  if (!Array.isArray(checklist)) return [];
-  
-  // Apply search filter if searchTerm exists
-  const filtered = searchTerm
-    ? checklist.filter((account) =>
-        Object.values(account).some(
-          (value) =>
-            value &&
-            value.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      )
-    : checklist;
-
-  return [...filtered].sort(sortDateWise);
-}, [checklist, searchTerm]);
+ const filteredAccountData = useMemo(() => {
+    return [...(checklist || [])].sort(sortDateWise);
+  }, [checklist]);
 
 const filteredHistoryData = useMemo(() => {
   if (!Array.isArray(history)) return [];
@@ -579,6 +618,10 @@ const filteredHistoryData = useMemo(() => {
     })
   }, [])
 
+   const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
   const handleCheckboxClick = useCallback(
     (e, id) => {
       e.stopPropagation()
@@ -750,13 +793,13 @@ const handleSubmit = async () => {
           <div className="flex space-x-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder={showHistory ? "Search history..." : "Search tasks..."}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
+            <input
+    type="text"
+    placeholder={showHistory ? "Search history..." : "Search tasks..."}
+    value={searchTerm}
+    onChange={handleSearchChange}
+    className="pl-10 pr-4 py-2 border border-purple-200 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+  />
             </div>
             <button
               onClick={toggleHistory}
@@ -823,19 +866,19 @@ const handleSubmit = async () => {
             </p>
           </div>
 
-          {loading ? (
-            <div className="text-center py-10">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500 mb-4"></div>
-              <p className="text-purple-600">Loading task data...</p>
-            </div>
-          ) : error ? (
-            <div className="bg-red-50 p-4 rounded-md text-red-800 text-center">
-              {error}{" "}
-              <button className="underline ml-2" onClick={() => window.location.reload()}>
-                Try again
-              </button>
-            </div>
-          ) : showHistory ? (
+        {initialLoading ? (
+  <div className="text-center py-10">
+    <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500 mb-4"></div>
+    <p className="text-purple-600">Loading task data...</p>
+  </div>
+) : error ? (
+  <div className="bg-red-50 p-4 rounded-md text-red-800 text-center">
+    {error}{" "}
+    <button className="underline ml-2" onClick={() => window.location.reload()}>
+      Try again
+    </button>
+  </div>
+) : showHistory ? (
             <>
               {/* History Filters */}
               <div className="p-4 border-b border-purple-100 bg-gray-50">
@@ -1023,8 +1066,8 @@ const handleSubmit = async () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredHistoryData.length > 0 ? (
-                      filteredHistoryData.map((history) => (
-                        <tr key={history.task_id} className="hover:bg-gray-50">
+                      filteredHistoryData.map((history,index) => (
+                        <tr key={index} className="hover:bg-gray-50">
                           {/* Admin Select Checkbox - Show different states based on Column P */}
                           {userRole === "admin" && (
                             <td className="px-3 py-4 w-12">
@@ -1240,179 +1283,207 @@ const handleSubmit = async () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredAccountData.length > 0 ? (
-                    filteredAccountData.map((account) => {
-                      const isSelected = selectedItems.has(account.task_id)
+              <tbody className="bg-white divide-y divide-gray-200">
+   {filteredAccountData.length > 0 ? (
+        <>
+          {filteredAccountData.map((account, index) => {
+            const isSelected = selectedItems.has(account.task_id);
+            const isLastItem = index === filteredAccountData.length - 1;
+            
+            return (
+            <tr 
+    key={index} // Added fallback
+    ref={isLastItem ? lastItemRef : null}
+    className={`${isSelected ? "bg-purple-50" : ""} hover:bg-gray-50`}
+  >
+                <td className="px-3 py-4 w-12">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    checked={isSelected}
+                    onChange={(e) => handleCheckboxClick(e, account.task_id)}
+                  />
+                </td>
+                <td className="px-3 py-4 min-w-[100px]">
+                  <div className="text-sm text-gray-900 break-words">{account.task_id || "—"}</div>
+                </td>
+                <td className="px-3 py-4 min-w-[120px]">
+                  <div className="text-sm text-gray-900 break-words">{account.department || "—"}</div>
+                </td>
+                <td className="px-3 py-4 min-w-[100px]">
+                  <div className="text-sm text-gray-900 break-words">{account.given_by || "—"}</div>
+                </td>
+                <td className="px-3 py-4 min-w-[100px]">
+                  <div className="text-sm text-gray-900 break-words">{account.name || "—"}</div>
+                </td>
+                <td className="px-3 py-4 min-w-[200px]">
+                  <div className="text-sm text-gray-900 break-words" title={account.task_description}>
+                    {account.task_description || "—"}
+                  </div>
+                </td>
+                <td className="px-3 py-4 bg-yellow-50 min-w-[140px]">
+                  <div className="text-sm text-gray-900 break-words">
+                    {account.task_start_date ? (() => {
+                      const dateObj = new Date(account.task_start_date);
+                      const formattedDate = `${
+                        ("0" + dateObj.getDate()).slice(-2)
+                      }/${
+                        ("0" + (dateObj.getMonth() + 1)).slice(-2)
+                      }/${
+                        dateObj.getFullYear()
+                      } ${
+                        ("0" + dateObj.getHours()).slice(-2)
+                      }:${
+                        ("0" + dateObj.getMinutes()).slice(-2)
+                      }:${
+                        ("0" + dateObj.getSeconds()).slice(-2)
+                      }`;
+
                       return (
-                        <tr key={account.task_id} className={`${isSelected ? "bg-purple-50" : ""} hover:bg-gray-50`}>
-                          <td className="px-3 py-4 w-12">
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                              checked={isSelected}
-                              onChange={(e) => handleCheckboxClick(e, account.task_id)}
-                            />
-                          </td>
-                          <td className="px-3 py-4 min-w-[100px]">
-                            <div className="text-sm text-gray-900 break-words">{account.task_id || "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 min-w-[120px]">
-                            <div className="text-sm text-gray-900 break-words">{account.department || "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 min-w-[100px]">
-                            <div className="text-sm text-gray-900 break-words">{account.given_by || "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 min-w-[100px]">
-                            <div className="text-sm text-gray-900 break-words">{account.name || "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 min-w-[200px]">
-                            <div className="text-sm text-gray-900 break-words" title={account.task_description}>
-                              {account.task_description || "—"}
-                            </div>
-                          </td>
-                          <td className="px-3 py-4 bg-yellow-50 min-w-[140px]">
-  <div className="text-sm text-gray-900 break-words">
-    {account.task_start_date ? (() => {
-      const dateObj = new Date(account.task_start_date);
-      const formattedDate = `${
-        ("0" + dateObj.getDate()).slice(-2)
-      }/${
-        ("0" + (dateObj.getMonth() + 1)).slice(-2)
-      }/${
-        dateObj.getFullYear()
-      } ${
-        ("0" + dateObj.getHours()).slice(-2)
-      }:${
-        ("0" + dateObj.getMinutes()).slice(-2)
-      }:${
-        ("0" + dateObj.getSeconds()).slice(-2)
-      }`;
-
-      return (
-        <div>
-          <div className="font-medium break-words">
-            {formattedDate.split(" ")[0]} {/* => DD/MM/YYYY */}
-          </div>
-          <div className="text-xs text-gray-500 break-words">
-            {formattedDate.split(" ")[1]} {/* => HH:MM:SS */}
-          </div>
-        </div>
-      );
-    })() : "—"}
-  </div>
-</td>
-
-                          <td className="px-3 py-4 min-w-[80px]">
-                            <div className="text-sm text-gray-900 break-words">{account.frequency || "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 min-w-[120px]">
-                            <div className="text-sm text-gray-900 break-words">{account.enable_reminder || "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 min-w-[120px]">
-                            <div className="text-sm text-gray-900 break-words">{account.require_attachment|| "—"}</div>
-                          </td>
-                          <td className="px-3 py-4 bg-yellow-50 min-w-[100px]">
-                            <select
-                              disabled={!isSelected}
-                              value={additionalData[account.task_id] || ""}
-                              onChange={(e) => {
-                                setAdditionalData((prev) => ({ ...prev, [account.task_id]: e.target.value }))
-                                if (e.target.value !== "No") {
-                                  setRemarksData((prev) => {
-                                    const newData = { ...prev }
-                                    delete newData[account.task_id]
-                                    return newData
-                                  })
-                                }
-                              }}
-                              className="border border-gray-300 rounded-md px-2 py-1 w-full disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
-                            >
-                              <option value="">Select...</option>
-                              <option value="Yes">Yes</option>
-                              <option value="No">No</option>
-                            </select>
-                          </td>
-                          <td className="px-3 py-4 bg-orange-50 min-w-[150px]">
-                            <input
-                              type="text"
-                              placeholder="Enter remarks"
-                              disabled={!isSelected || !additionalData[account.task_id]}
-                              value={remarksData[account.task_id] || ""}
-                              onChange={(e) => setRemarksData((prev) => ({ ...prev, [account.task_id]: e.target.value }))}
-                              className="border rounded-md px-2 py-1 w-full border-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm break-words"
-                            />
-                          </td>
-                        <td className="px-3 py-4 bg-green-50 min-w-[120px]">
-  {uploadedImages[account.task_id] || account.image ? (
-    <div className="flex items-center">
-      <img
-        src={
-          uploadedImages[account.task_id]?.previewUrl || 
-          (typeof account.image === 'string' ? account.image : '')
-        }
-        alt="Receipt"
-        className="h-10 w-10 object-cover rounded-md mr-2 flex-shrink-0"
-      />
-      <div className="flex flex-col min-w-0">
-        <span className="text-xs text-gray-500 break-words">
-          {uploadedImages[account.task_id]?.file.name || 
-           (account.image instanceof File ? account.image.name : "Uploaded Receipt")}
-        </span>
-        {uploadedImages[account.task_id] ? (
-          <span className="text-xs text-green-600">Ready to upload</span>
-        ) : (
-          <button
-            className="text-xs text-purple-600 hover:text-purple-800 break-words"
-            onClick={() => window.open(account.image, "_blank")}
-          >
-            View Full Image
-          </button>
-        )}
-      </div>
-    </div>
-  ) : (
-    <label
-      className={`flex items-center cursor-pointer ${
-        account.require_attachment?.toUpperCase() === "YES" 
-          ? "text-red-600 font-medium" 
-          : "text-purple-600"
-      } hover:text-purple-800`}
-    >
-      <Upload className="h-4 w-4 mr-1 flex-shrink-0" />
-      <span className="text-xs break-words">
-        {account.require_attachment?.toUpperCase() === "YES"
-          ? "Required Upload"
-          : "Upload Receipt Image"}
-        {account.require_attachment?.toUpperCase() === "YES" && (
-          <span className="text-red-500 ml-1">*</span>
-        )}
-      </span>
-      <input
-        type="file"
-        className="hidden"
-        accept="image/*"
-        onChange={(e) => handleImageUpload(account.task_id, e)}
-        disabled={!isSelected}
-      />
-    </label>
-  )}
-</td>
-                        </tr>
-                      )
-                    })
+                        <div>
+                          <div className="font-medium break-words">
+                            {formattedDate.split(" ")[0]}
+                          </div>
+                          <div className="text-xs text-gray-500 break-words">
+                            {formattedDate.split(" ")[1]}
+                          </div>
+                        </div>
+                      );
+                    })() : "—"}
+                  </div>
+                </td>
+                <td className="px-3 py-4 min-w-[80px]">
+                  <div className="text-sm text-gray-900 break-words">{account.frequency || "—"}</div>
+                </td>
+                <td className="px-3 py-4 min-w-[120px]">
+                  <div className="text-sm text-gray-900 break-words">{account.enable_reminder || "—"}</div>
+                </td>
+                <td className="px-3 py-4 min-w-[120px]">
+                  <div className="text-sm text-gray-900 break-words">{account.require_attachment || "—"}</div>
+                </td>
+                <td className="px-3 py-4 bg-yellow-50 min-w-[100px]">
+                  <select
+                    disabled={!isSelected}
+                    value={additionalData[account.task_id] || ""}
+                    onChange={(e) => {
+                      setAdditionalData((prev) => ({ ...prev, [account.task_id]: e.target.value }))
+                      if (e.target.value !== "No") {
+                        setRemarksData((prev) => {
+                          const newData = { ...prev }
+                          delete newData[account.task_id]
+                          return newData
+                        })
+                      }
+                    }}
+                    className="border border-gray-300 rounded-md px-2 py-1 w-full disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+                  >
+                    <option value="">Select...</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </td>
+                <td className="px-3 py-4 bg-orange-50 min-w-[150px]">
+                  <input
+                    type="text"
+                    placeholder="Enter remarks"
+                    disabled={!isSelected || !additionalData[account.task_id]}
+                    value={remarksData[account.task_id] || ""}
+                    onChange={(e) => setRemarksData((prev) => ({ ...prev, [account.task_id]: e.target.value }))}
+                    className="border rounded-md px-2 py-1 w-full border-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed text-sm break-words"
+                  />
+                </td>
+                <td className="px-3 py-4 bg-green-50 min-w-[120px]">
+                  {uploadedImages[account.task_id] || account.image ? (
+                    <div className="flex items-center">
+                      <img
+                        src={
+                          uploadedImages[account.task_id]?.previewUrl || 
+                          (typeof account.image === 'string' ? account.image : '')
+                        }
+                        alt="Receipt"
+                        className="h-10 w-10 object-cover rounded-md mr-2 flex-shrink-0"
+                      />
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs text-gray-500 break-words">
+                          {uploadedImages[account.task_id]?.file.name || 
+                          (account.image instanceof File ? account.image.name : "Uploaded Receipt")}
+                        </span>
+                        {uploadedImages[account.task_id] ? (
+                          <span className="text-xs text-green-600">Ready to upload</span>
+                        ) : (
+                          <button
+                            className="text-xs text-purple-600 hover:text-purple-800 break-words"
+                            onClick={() => window.open(account.image, "_blank")}
+                          >
+                            View Full Image
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ) : (
-                    <tr>
-      <td colSpan={13} className="px-6 py-4 text-center text-gray-500">
-        {searchTerm
-          ? "No tasks matching your search"
-          : "No pending tasks found for today, tomorrow, or past due dates"}
-      </td>
-    </tr>
+                    <label
+                      className={`flex items-center cursor-pointer ${
+                        account.require_attachment?.toUpperCase() === "YES" 
+                          ? "text-red-600 font-medium" 
+                          : "text-purple-600"
+                      } hover:text-purple-800`}
+                    >
+                      <Upload className="h-4 w-4 mr-1 flex-shrink-0" />
+                      <span className="text-xs break-words">
+                        {account.require_attachment?.toUpperCase() === "YES"
+                          ? "Required Upload"
+                          : "Upload Receipt Image"}
+                        {account.require_attachment?.toUpperCase() === "YES" && (
+                          <span className="text-red-500 ml-1">*</span>
+                        )}
+                      </span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(account.task_id, e)}
+                        disabled={!isSelected}
+                      />
+                    </label>
                   )}
-                </tbody>
-              </table>
-            </div>
+                </td>
+              </tr>
+            );
+          })}
+          
+          {/* Loading row - only shown when fetching */}
+          {(loading || isFetching) && (
+            <tr>
+              <td colSpan={13} className="text-center py-4">
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500 mr-2"></div>
+                  <span className="text-purple-600">Loading more tasks...</span>
+                </div>
+              </td>
+            </tr>
+          )}
+          
+          {/* End of list message - only shown when no more data */}
+          {!hasMore && !isFetching && (
+            <tr>
+              <td colSpan={13} className="text-center py-4 text-gray-500">
+                You've reached the end of the list
+              </td>
+            </tr>
+          )}
+        </>
+      ) : (
+        <tr>
+          <td colSpan={13} className="px-6 py-4 text-center text-gray-500">
+            {searchTerm
+              ? "No tasks matching your search"
+              : "No pending tasks found for today, tomorrow, or past due dates"}
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
           )}
         </div>
       </div>
@@ -1421,4 +1492,12 @@ const handleSubmit = async () => {
 }
 
 export default AccountDataPage
+
+
+
+
+
+
+
+
 

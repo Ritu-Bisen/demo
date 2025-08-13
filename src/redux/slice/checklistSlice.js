@@ -2,7 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import { fetchChechListDataForHistory, fetchChechListDataSortByDate, postChecklistAdminDoneAPI, updateChecklistData } from "../api/checkListApi";
 
 export const fetchChecklistData = createAsyncThunk(
-  'fetch/checklist',
+  'checklist/fetchChecklistData',
   async ({ page = 1, searchTerm = '' }, { getState }) => {
     const { checklist } = getState();
     const currentPage = page || checklist.currentPage;
@@ -14,6 +14,7 @@ export const fetchChecklistData = createAsyncThunk(
     };
   }
 );
+
 
 export const searchChecklist = createAsyncThunk(
   'search/checklist',
@@ -52,14 +53,11 @@ const checkListSlice = createSlice({
   name: 'checklist',
   initialState: {
     checklist: [],
-    history: [],
     error: null,
     loading: false,
     currentPage: 1,
     hasMore: true,
-    isFetching: false,
-    searchTerm: '',
-    isSearching: false
+    searchTerm: ''
   },
   reducers: {
     resetChecklist: (state) => {
@@ -67,7 +65,6 @@ const checkListSlice = createSlice({
       state.currentPage = 1;
       state.hasMore = true;
       state.searchTerm = '';
-      state.isSearching = false;
     },
     setSearchTerm: (state, action) => {
       state.searchTerm = action.payload;
@@ -77,21 +74,22 @@ const checkListSlice = createSlice({
     builder
       .addCase(fetchChecklistData.pending, (state) => {
         state.loading = true;
-        state.isFetching = true;
         state.error = null;
       })
       .addCase(fetchChecklistData.fulfilled, (state, action) => {
         state.loading = false;
-        state.isFetching = false;
-        state.checklist = state.currentPage === 1 
-          ? action.payload.data 
-          : [...state.checklist, ...action.payload.data];
+        if (action.payload.page === 1) {
+          state.checklist = action.payload.data;
+        } else {
+          const existingIds = new Set(state.checklist.map(item => item.task_id));
+          const newItems = action.payload.data.filter(item => !existingIds.has(item.task_id));
+          state.checklist.push(...newItems);
+        }
         state.currentPage = action.payload.page + 1;
         state.hasMore = action.payload.hasMore;
       })
       .addCase(fetchChecklistData.rejected, (state, action) => {
         state.loading = false;
-        state.isFetching = false;
         state.error = action.error.message;
       })
       .addCase(searchChecklist.pending, (state) => {

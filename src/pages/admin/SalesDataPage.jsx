@@ -53,7 +53,7 @@ function AccountDataPage() {
   const {doerName}=useSelector((state)=>state.assignTask)
 
 console.log(doerName)
-  const { checklist, loading, error, hasMore, isFetching,history } = useSelector((state) => state.checkList);
+  const { checklist, loading, error, hasMore, isFetching,history,currentPage } = useSelector((state) => state.checkList);
 //  const dispatch = useDispatch();
   const observer = useRef();
   const tableContainerRef = useRef();
@@ -66,28 +66,24 @@ const dispatch =useDispatch();
 
   // Infinite scroll observer
  const lastItemRef = useCallback(
-    (node) => {
-      if (loading || isFetching) return;
-      if (observer.current) observer.current.disconnect();
-      
-      observer.current = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting && hasMore && !loading) {
-            dispatch(fetchChecklistData({ 
-              searchTerm: debouncedSearchTerm 
-            }));
-          }
-        },
-        {
-          root: tableContainerRef.current,
-          threshold: 0.1,
-        }
-      );
-      
-      if (node) observer.current.observe(node);
-    },
-    [loading, hasMore, isFetching, dispatch, debouncedSearchTerm]
-  );
+  (node) => {
+    if (loading || isFetching) return;
+    if (observer.current) observer.current.disconnect();
+    
+    observer.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore) {
+        dispatch(fetchChecklistData({ 
+          page: currentPage + 1, // track this in state
+          searchTerm: debouncedSearchTerm
+        }));
+      }
+    }, { root: tableContainerRef.current, threshold: 0.1 });
+
+    if (node) observer.current.observe(node);
+  },
+  [loading, hasMore, isFetching, currentPage, dispatch, debouncedSearchTerm]
+);
+
 
   
   useEffect(()=>{

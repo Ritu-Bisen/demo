@@ -1,10 +1,11 @@
 import supabase from "../../SupabaseClient";
 
 // checkListApi.js
+
 export const fetchChechListDataSortByDate = async (page = 1, limit = 10, searchTerm = '') => {
   const role = localStorage.getItem('role');
   const username = localStorage.getItem('username');
-  
+
   try {
     const today = new Date();
     const endOfTomorrow = new Date();
@@ -12,26 +13,38 @@ export const fetchChechListDataSortByDate = async (page = 1, limit = 10, searchT
     endOfTomorrow.setHours(23, 59, 59, 999);
     const endOfTomorrowISO = endOfTomorrow.toISOString();
 
-    // Base query with only necessary filters
     let query = supabase
       .from('checklist')
-      .select('task_id, department, given_by, name, task_description, task_start_date, frequency, enable_reminder, require_attachment, submission_date, status, remark, image, admin_done')
-      .range((page - 1) * limit, (page * limit) - 1)
+      .select(`
+        task_id,
+        department,
+        given_by,
+        name,
+        task_description,
+        task_start_date,
+        frequency,
+        enable_reminder,
+        require_attachment,
+        submission_date,
+        status,
+        remark,
+        image,
+        admin_done
+      `)
       .lte('task_start_date', endOfTomorrowISO)
+      .or('submission_date.is.null,status.is.null') // condition you want
       .order('task_start_date', { ascending: true })
-      .or('submission_date.is.null,status.is.null');
+      .range((page - 1) * limit, (page * limit) - 1);
 
-    // Add search filter if provided
     if (searchTerm) {
       query = query.ilike('task_description', `%${searchTerm}%`);
     }
 
-    // Add user filter if needed
     if (role === 'user' && username) {
       query = query.eq('name', username);
     }
 
-    const { data, error, count } = await query;
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -44,6 +57,10 @@ export const fetchChechListDataSortByDate = async (page = 1, limit = 10, searchT
     throw error;
   }
 };
+
+
+
+
 
 export const fetchChechListDataForHistory = async () => {
   const role = localStorage.getItem('role');
